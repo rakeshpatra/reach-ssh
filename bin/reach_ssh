@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+
+# for all case -u is optional where default user is set using DEFAULT_USER
+# case 1 (ssh from global level):
+# reach_ssh -e production -a sentiment -u bhaskars
+# case 2 (ssh from project folder if it has .instance_credentials file)
+# tmp: reach_ssh --use-ssh production bhaskars
+# reach_ssh -e production -u bhaskars --use-ssh
+# case 3 (ssh using normal ssh command)
+# reach_ssh -e production -u bhaskars --use-ssh
+
+. /home/bhaskars/projects/shell_script_workspace/reach_ssh/ssh_credentials
+
+display_help() {
+  sed 's/^    //' <<-EOF
+    Usage:
+      reach_ssh [sub-command] [option [value]...]
+
+    Sub command:
+      copy-url -env <value> -a <value> :
+        Copies url of the mentioned app into clipboard. options are described below. This sub-command supports only two options as mentioned above and they both are cumpolsury.
+
+    Options:
+      --use-ssh : If given it establishes connection using nomral ssh command instead of gcloud command. This is a boolean option. It should be mentioned at the end of the command.
+      --env : Environtment of the application as specified in ssh_credentials.sh or .instance_credentials file.
+      -a : Name of the application as specified in ssh_credentials.sh or .instance_credentials file.
+      -u : Login user for ssh. Value for this can be give from command or it can be set in script using DEFAULT_USER variable.
+EOF
+}
+
+check_sub_command_display_help() {
+  case $SUB_COMMAND in
+    copy-url)
+      ARGS=("${@:2}")
+    ;;
+    -h|--help)
+      display_help
+    exit 0
+    ;;
+    *)
+      ARGS=("$@")
+    ;;
+  esac
+}
+
+parse_arguments_into_opts() {
+  i=0
+  args_length=${#ARGS[@]}
+  while [ $i -le $args_length ]; do
+    key_index=$(( i ))
+    value_index=$(( ++i ))
+    if [[ ${ARGS[$value_index]} == "" ]]; then
+      value='True'
+    else
+      value=${ARGS[$value_index]}
+    fi
+    OPTS[${ARGS[$key_index]}]=$value
+    i=$(( ++i ))
+    if [[ $i == $args_length && $(( args_length % 2 )) == 0 ]]; then
+      break
+    fi
+  done
+}
+
+run_sub_command_if_exists() {
+  case $SUB_COMMAND in
+    copy-url)
+      echo -n ${SSH_CREDENTIALS[${OPTS[-env]}:${OPTS[-a]}:url]} | xclip -selection c
+      exit 0
+    ;;
+  esac
+}
+
+decide_and_set_user() {
+  if [ ${OPTS[-u] + 1} ]; then
+    user=${OPTS[-u]}
+  elif [ -v DEFAULT_USER ]; then
+    echo 'Using user from DEFAULT_USER variable'
+    user=$DEFAULT_USER
+  else
+    echo 'Please either set DEFAULT_USER user in script or pass -u option in arguments'
+    exit 1
+  fi
+}
+
+set_connection_type() {
+  if [[ ${OPTS[--use-ssh]} == 'True' ]]; then
+    conn_type='ssh'
+  fi
+}
+
+set_connectiion_options() {
+  if [ ${OPTS[-a] + 1} ]; then
+    ip_address=${SSH_CREDENTIALS[${OPTS[-env]}:${OPTS[-a]}:ip_address]}
+    project_id=${SSH_CREDENTIALS[${OPTS[-env]}:${OPTS[-a]}:project_id]}
+    instance_name=${SSH_CREDENTIALS[${OPTS[-env]}:${OPTS[-a]}:instance_name]}
+    zone=${SSH_CREDENTIALS[${OPTS[-env]}:${OPTS[-a]}:time_zone]}
+  elif [ -f $CONFIG_FILE ]; then
+    echo 'Using .instance_credentials file in current folder for establishing connection...'
+    CREDENTIALS=( $(awk -F: '$1=="'"${OPTS[-env]}"'"' .instance_credentials | sed 's/:/ /g') )
+    ip_address=${CREDENTIALS[1]}
+    project_id=${CREDENTIALS[2]}
+    instance_name=${CREDENTIALS[3]}
+    zone=${CREDENTIALS[4]}
+  else
+    echo 'Please either provide -a option for app or add .instance_credentials file with credentials'
+  fi
+}
+
+display_connection_info() {
+  echo 'Establishing connection using below credentials...'
+  echo "IP Address : $ip_address"
+  echo "Project ID : $project_id"
+  echo "Instance Name : $instance_name"
+  echo "Time Zone : $zone"
+  echo "User : $user"
+}
+
+set_defaults() {
+  CONFIG_FILE=$(pwd)/.instance_credentials
+  DEFAULT_USER='bhaskars'
+  SUB_COMMAND=$1
+}
+
+establish_connection() {
+  case $conn_type in
+    ssh)
+      ssh $user@$ip_address
+      ;;
+    *)
+      gcloud compute --project $project_id ssh --zone $zone $user@$instance_name
+      ;;
+  esac
+}
+
+run_command() {
+  set_defaults $@
+  check_sub_command_display_help $@
+  parse_arguments_into_opts
+  run_sub_command_if_exists
+  decide_and_set_user
+  set_connection_type
+  set_connectiion_options
+  display_connection_info
+  establish_connection
+}
+
+declare -A OPTS
+run_command $@
