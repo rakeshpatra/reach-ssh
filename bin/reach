@@ -9,7 +9,11 @@
 # case 3 (ssh using normal ssh command)
 # reach_ssh -e production -u bhaskars --use-ssh
 
-. /home/bhaskars/projects/shell_script_workspace/reach_ssh/ssh_credentials
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )"/../ && pwd )"
+
+SOURCE=${DIR}/ssh_credentials
+
+. $SOURCE
 
 display_help() {
   sed 's/^    //' <<-EOF
@@ -37,8 +41,12 @@ check_sub_command_display_help() {
       display_help
     exit 0
     ;;
+    ssh)
+      ARGS=("${@:2}")
+    ;;
     *)
-      ARGS=("$@")
+      echo 'sub-command not found, check help by reach -h'
+      exit 0
     ;;
   esac
 }
@@ -46,7 +54,7 @@ check_sub_command_display_help() {
 parse_arguments_into_opts() {
   i=0
   args_length=${#ARGS[@]}
-  while [ $i -le $args_length ]; do
+  while [ $i -lt $args_length ]; do
     key_index=$(( i ))
     value_index=$(( ++i ))
     if [[ ${ARGS[$value_index]} == "" ]]; then
@@ -65,8 +73,17 @@ parse_arguments_into_opts() {
 run_sub_command_if_exists() {
   case $SUB_COMMAND in
     copy-url)
-      echo -n ${SSH_CREDENTIALS[${OPTS[-env]}:${OPTS[-a]}:url]} | xclip -selection c
-      exit 0
+      if [ ${SSH_CREDENTIALS[${OPTS[-env]}:${OPTS[-a]}:url] + 1} ]; then
+        echo -n ${SSH_CREDENTIALS[${OPTS[-env]}:${OPTS[-a]}:url]} | xclip -selection c
+        echo -e "'${SSH_CREDENTIALS[${OPTS[-env]}:${OPTS[-a]}:url]}', now just go and paste \u263A ."
+        exit 0
+      elif [ ${#OPTS[@]} -lt 2 ];then
+        echo "Arguments missing for -a and -env, do reach -h"
+        exit 1
+      else
+        echo "No URL found for '${OPTS[-a]}' app in '${OPTS[-env]}' env, plz check your ssh credentials."
+        exit 1
+      fi
     ;;
   esac
 }
@@ -118,7 +135,7 @@ display_connection_info() {
 
 set_defaults() {
   CONFIG_FILE=$(pwd)/.instance_credentials
-  DEFAULT_USER='bhaskars'
+  # DEFAULT_USER=$DEFAULT_USER
   SUB_COMMAND=$1
 }
 
@@ -133,7 +150,15 @@ establish_connection() {
   esac
 }
 
+verify_arguments() {
+  if [ $1 -lt 1 ]; then
+    display_help
+    exit 0
+  fi
+}
+
 run_command() {
+  verify_arguments $#
   set_defaults $@
   check_sub_command_display_help $@
   parse_arguments_into_opts
