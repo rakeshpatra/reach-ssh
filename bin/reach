@@ -92,8 +92,11 @@ decide_and_set_user() {
   if [ ${OPTS[-u] + 1} ]; then
     user=${OPTS[-u]}
   elif [ -v DEFAULT_USER ]; then
-    echo 'Using user from DEFAULT_USER variable'
-    user=$DEFAULT_USER
+    echo 'Using user from DEFAULT_USER variable, or else enter your username'
+    read -p "${DEFAULT_USER}:" user
+    if [ -z "$user" ]; then
+      user=$DEFAULT_USER
+    fi
   else
     echo 'Please either set DEFAULT_USER user in script or pass -u option in arguments'
     exit 1
