@@ -143,9 +143,11 @@ set_defaults() {
 }
 
 establish_connection() {
+  land_dir=${SSH_CREDENTIALS[${OPTS[-e]}:${OPTS[-a]}:path]}
   case $conn_type in
     ssh)
-      ssh $user@$ip_address
+      echo "cd ${land_dir}; bash"
+      ssh -t $user@$ip_address "cd ${land_dir}; bash"
       ;;
     *)
       gcloud compute --project $project_id ssh --zone $zone $user@$instance_name
