@@ -73,7 +73,7 @@ parse_arguments_into_opts() {
 run_sub_command_if_exists() {
   case $SUB_COMMAND in
     copy-url)
-      if [ ${SSH_CREDENTIALS[${OPTS[-e]}:${OPTS[-a]}:url] + 1} ]; then
+      if [ ${SSH_CREDENTIALS[${OPTS[-e]}:${OPTS[-a]}:url]} ]; then
         echo -n ${SSH_CREDENTIALS[${OPTS[-e]}:${OPTS[-a]}:url]} | xclip -selection c
         echo -e "'${SSH_CREDENTIALS[${OPTS[-e]}:${OPTS[-a]}:url]}', now just go and paste \u263A ."
         exit 0
@@ -89,7 +89,7 @@ run_sub_command_if_exists() {
 }
 
 decide_and_set_user() {
-  if [ ${OPTS[-u] + 1} ]; then
+  if [ ${OPTS[-u]} ]; then
     user=${OPTS[-u]}
   elif [ -v DEFAULT_USER ]; then
     echo 'Using user from DEFAULT_USER variable, or else enter your username'
@@ -110,7 +110,7 @@ set_connection_type() {
 }
 
 set_connectiion_options() {
-  if [ ${OPTS[-a] + 1} ]; then
+  if [ ${OPTS[-a]} ]; then
     ip_address=${SSH_CREDENTIALS[${OPTS[-e]}:${OPTS[-a]}:ip_address]}
     project_id=${SSH_CREDENTIALS[${OPTS[-e]}:${OPTS[-a]}:project_id]}
     instance_name=${SSH_CREDENTIALS[${OPTS[-e]}:${OPTS[-a]}:instance_name]}
