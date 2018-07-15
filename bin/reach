@@ -21,12 +21,12 @@ display_help() {
       reach_ssh [sub-command] [option [value]...]
 
     Sub command:
-      copy-url -env <value> -a <value> :
+      copy-url -e <value> -a <value> :
         Copies url of the mentioned app into clipboard. options are described below. This sub-command supports only two options as mentioned above and they both are cumpolsury.
 
     Options:
       --use-ssh : If given it establishes connection using nomral ssh command instead of gcloud command. This is a boolean option. It should be mentioned at the end of the command.
-      --env : Environtment of the application as specified in ssh_credentials.sh or .instance_credentials file.
+      -e : Environtment of the application as specified in ssh_credentials.sh or .instance_credentials file.
       -a : Name of the application as specified in ssh_credentials.sh or .instance_credentials file.
       -u : Login user for ssh. Value for this can be give from command or it can be set in script using DEFAULT_USER variable.
 EOF
@@ -73,15 +73,15 @@ parse_arguments_into_opts() {
 run_sub_command_if_exists() {
   case $SUB_COMMAND in
     copy-url)
-      if [ ${SSH_CREDENTIALS[${OPTS[-env]}:${OPTS[-a]}:url] + 1} ]; then
-        echo -n ${SSH_CREDENTIALS[${OPTS[-env]}:${OPTS[-a]}:url]} | xclip -selection c
-        echo -e "'${SSH_CREDENTIALS[${OPTS[-env]}:${OPTS[-a]}:url]}', now just go and paste \u263A ."
+      if [ ${SSH_CREDENTIALS[${OPTS[-e]}:${OPTS[-a]}:url]} ]; then
+        echo -n ${SSH_CREDENTIALS[${OPTS[-e]}:${OPTS[-a]}:url]} | xclip -selection c
+        echo -e "'${SSH_CREDENTIALS[${OPTS[-e]}:${OPTS[-a]}:url]}', now just go and paste \u263A ."
         exit 0
       elif [ ${#OPTS[@]} -lt 2 ];then
-        echo "Arguments missing for -a and -env, do reach -h"
+        echo "Arguments missing for -a and -e, do reach -h"
         exit 1
       else
-        echo "No URL found for '${OPTS[-a]}' app in '${OPTS[-env]}' env, plz check your ssh credentials."
+        echo "No URL found for '${OPTS[-a]}' app in '${OPTS[-e]}' env, plz check your ssh credentials."
         exit 1
       fi
     ;;
@@ -89,11 +89,14 @@ run_sub_command_if_exists() {
 }
 
 decide_and_set_user() {
-  if [ ${OPTS[-u] + 1} ]; then
+  if [ ${OPTS[-u]} ]; then
     user=${OPTS[-u]}
   elif [ -v DEFAULT_USER ]; then
-    echo 'Using user from DEFAULT_USER variable'
-    user=$DEFAULT_USER
+    echo 'Using user from DEFAULT_USER variable, or else enter your username'
+    read -p "${DEFAULT_USER}:" user
+    if [ -z "$user" ]; then
+      user=$DEFAULT_USER
+    fi
   else
     echo 'Please either set DEFAULT_USER user in script or pass -u option in arguments'
     exit 1
@@ -107,14 +110,14 @@ set_connection_type() {
 }
 
 set_connectiion_options() {
-  if [ ${OPTS[-a] + 1} ]; then
-    ip_address=${SSH_CREDENTIALS[${OPTS[-env]}:${OPTS[-a]}:ip_address]}
-    project_id=${SSH_CREDENTIALS[${OPTS[-env]}:${OPTS[-a]}:project_id]}
-    instance_name=${SSH_CREDENTIALS[${OPTS[-env]}:${OPTS[-a]}:instance_name]}
-    zone=${SSH_CREDENTIALS[${OPTS[-env]}:${OPTS[-a]}:time_zone]}
+  if [ ${OPTS[-a]} ]; then
+    ip_address=${SSH_CREDENTIALS[${OPTS[-e]}:${OPTS[-a]}:ip_address]}
+    project_id=${SSH_CREDENTIALS[${OPTS[-e]}:${OPTS[-a]}:project_id]}
+    instance_name=${SSH_CREDENTIALS[${OPTS[-e]}:${OPTS[-a]}:instance_name]}
+    zone=${SSH_CREDENTIALS[${OPTS[-e]}:${OPTS[-a]}:time_zone]}
   elif [ -f $CONFIG_FILE ]; then
     echo 'Using .instance_credentials file in current folder for establishing connection...'
-    CREDENTIALS=( $(awk -F: '$1=="'"${OPTS[-env]}"'"' .instance_credentials | sed 's/:/ /g') )
+    CREDENTIALS=( $(awk -F: '$1=="'"${OPTS[-e]}"'"' .instance_credentials | sed 's/:/ /g') )
     ip_address=${CREDENTIALS[1]}
     project_id=${CREDENTIALS[2]}
     instance_name=${CREDENTIALS[3]}
@@ -140,9 +143,11 @@ set_defaults() {
 }
 
 establish_connection() {
+  land_dir=${SSH_CREDENTIALS[${OPTS[-e]}:${OPTS[-a]}:path]}
   case $conn_type in
     ssh)
-      ssh $user@$ip_address
+      echo "cd ${land_dir}; bash"
+      ssh -t $user@$ip_address "cd ${land_dir}; bash"
       ;;
     *)
       gcloud compute --project $project_id ssh --zone $zone $user@$instance_name
